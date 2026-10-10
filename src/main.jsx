@@ -407,10 +407,33 @@ function RoutePlanner({ origin, setOrigin, destination, setDestination, places, 
               <Signal icon={<Droplets />} title="Road reports" value={`${risk.roadReports} on corridor`} note={risk.signals?.reportFreshness || 'Recent community signal'} />
               <Signal icon={<Gauge />} title="Confidence" value={risk.confidence} note={risk.confidence === 'Limited' ? 'Low confidence until locations match or reports arrive' : risk.hotspot} />
             </div>
+            <ScoreBreakdown breakdown={risk.scoreBreakdown} />
           </div>
         )}
       </section>
     </main>
+  );
+}
+
+function ScoreBreakdown({ breakdown }) {
+  if (!breakdown) return null;
+  const rows = [
+    ['Hotspot baseline', breakdown.hotspotBaseline],
+    ['Weather signal', breakdown.weatherSignal],
+    ['Community reports', breakdown.communityReports],
+    ['Crew mitigation', breakdown.responseMitigation ? `-${breakdown.responseMitigation}` : '0']
+  ];
+  return (
+    <article className="score-breakdown">
+      <div className="breakdown-head">
+        <div><small>HOW THE SCORE WAS BUILT</small><h3>Evidence, not a black box</h3></div>
+        <span>{breakdown.corridorExposure ? `${Math.round(breakdown.corridorExposure * 100)}% exposure` : 'No exposure'}</span>
+      </div>
+      <div className="breakdown-rows">
+        {rows.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value} <small>pts</small></strong></div>)}
+      </div>
+      <p>{breakdown.note}</p>
+    </article>
   );
 }
 

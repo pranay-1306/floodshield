@@ -3,10 +3,15 @@ const base = configuredBase.replace(/\/$/, '');
 
 const request = async (path, options) => {
   let response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
-    response = await fetch(`${base}${path}`, options);
-  } catch {
+    response = await fetch(`${base}${path}`, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error('FloodShield API took too long to respond. It may be waking up; try again.');
     throw new Error('FloodShield API is unreachable. Start the API server and try again.');
+  } finally {
+    clearTimeout(timeout);
   }
   if (response.status === 204) return null;
   const payload = await response.json().catch(() => ({}));

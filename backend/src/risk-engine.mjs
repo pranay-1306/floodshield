@@ -157,6 +157,21 @@ export function calculateRisk({ origin = '', destination = '', reports = [], rai
       reportFreshness: roadReports === 0 ? 'No corridor reports' : 'Weighted by age and trust',
       responseStatus: primary?.actionStatus || 'Unassigned',
       exposedCount: exposed.length
+    },
+    scoreBreakdown: primary ? {
+      hotspotBaseline: primary.baseRisk,
+      weatherSignal: primary.rainSignal,
+      communityReports: primary.reportSignal,
+      responseMitigation: primary.mitigation,
+      corridorExposure: Number(primary.exposure.toFixed(2)),
+      note: 'Signals are heuristic points, not a probability of flooding.'
+    } : {
+      hotspotBaseline: 0,
+      weatherSignal: rainOnly,
+      communityReports: 0,
+      responseMitigation: 0,
+      corridorExposure: 0,
+      note: matched ? 'No monitored hotspot is within 3 km of this corridor.' : 'Choose recognised locations for a route-aware score.'
     }
   };
 }

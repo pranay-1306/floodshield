@@ -80,6 +80,20 @@ test('resolving an exposed hotspot lowers the commuter corridor score', () => {
   assert.ok(resolved.risk < open.risk);
 });
 
+test('risk responses expose an explainable signal breakdown', () => {
+  const result = calculateRisk({
+    origin: 'DTU, Rohini',
+    destination: 'Mandi House',
+    rainfallMmHr: 8,
+    reports: severeMandi
+  });
+  assert.equal(typeof result.scoreBreakdown.hotspotBaseline, 'number');
+  assert.equal(typeof result.scoreBreakdown.weatherSignal, 'number');
+  assert.equal(typeof result.scoreBreakdown.communityReports, 'number');
+  assert.equal(typeof result.scoreBreakdown.corridorExposure, 'number');
+  assert.match(result.scoreBreakdown.note, /heuristic/i);
+});
+
 test('location resolver and corridor distance helpers support the route model', () => {
   const dtu = resolveLocation('DTU, Rohini');
   const mandi = resolveLocation('Mandi House');
