@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { calculateQueue, calculateRisk, hotspots } from './risk-engine.mjs';
+import { listLocations } from './locations.mjs';
 import { getDelhiRainfall } from './weather.mjs';
 import { isDuplicate, trustScore, validateReport, withReportMeta } from './report-quality.mjs';
 
@@ -78,6 +79,7 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost:8787');
   try {
     if (req.method === 'GET' && url.pathname === '/health') return reply(res, 200, { status: 'ok', storage: 'local-json' });
+    if (req.method === 'GET' && url.pathname === '/locations') return reply(res, 200, listLocations());
     if (req.method === 'GET' && url.pathname === '/weather') return reply(res, 200, await getDelhiRainfall());
 
     if (req.method === 'GET' && url.pathname === '/reports') {

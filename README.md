@@ -1,45 +1,81 @@
 # FloodShield
 
-FloodShield is a hackathon MVP for flood-aware travel decisions and a citizen-to-authority waterlogging response loop. It combines a Delhi-area rainfall forecast, known flood-sensitive hotspots, recent citizen reports, and authority action status into a heuristic risk score and a ranked intervention queue.
+FloodShield is a hackathon MVP for flood-aware travel decisions and a citizen-to-authority waterlogging response loop in Delhi.
 
-> **Important limitation:** this is a decision-support prototype, not an official warning system. The hotspot map and route lines in the UI are illustrative. The app does not calculate a geospatially verified safe route, confirm road closures, or send push/SMS alerts. Check official advisories and live directions before travelling.
+It matches a commuter origin and destination to a Delhi location set, measures which monitored flood hotspots sit within **3 km of that corridor**, then scores the journey from four separate signals: Open-Meteo rainfall, hotspot sensitivity, citizen-report freshness/trust, and authority response status.
+
+> **Limitation:** this is decision support, not an official warning system. The on-screen map is illustrative. The corridor is a geodesic between two known places, not a turn-by-turn roads model. It does not confirm closures, water depth, or send SMS/push alerts. Check official advisories and live directions before travelling.
+
+## Why this exists
+
+Delhi commuters usually get a city-wide rain forecast. Crews get scattered WhatsApp photos. FloodShield’s demo answers two questions:
+
+- **Commuter:** is *this* journey exposed to a known waterlogging spot right now?
+- **Authority:** which hotspot should get a crew first, and has that crew actually moved Assign → Start → Resolve?
 
 ## Features
 
-- Route-risk estimate with risk score, contributing reasons, confidence label, and recommendation.
-- Open-Meteo precipitation forecast for Delhi, cached in memory for 15 minutes with a stale/fallback signal when unavailable.
-- Citizen waterlogging reports with input validation, duplicate rejection for matching reports in a 20-minute window, report freshness, and a heuristic trust score.
-- Authority queue ranked by hotspot baseline, rainfall, fresh reports, and the latest action state.
-- Authority action lifecycle enforced as **Assign → Start → Resolve**.
-- Local API with JSON-file persistence and a Lambda/API Gateway + DynamoDB deployment path.
-- Automated risk/quality unit tests and local API integration tests.
+- **Route-aware risk** using Delhi coordinates, not destination-name matching.
+- Suggested Delhi locations in the planner to avoid free-text ambiguity.
+- Open-Meteo precipitation for Delhi, cached 15 minutes, with a stale/fallback signal (never faked as live).
+- Citizen reports with validation, 20-minute duplicate rejection, freshness, and trust.
+- Authority queue ranked by baseline, rain, reports, and action state.
+- Loading, unmatched-location, low-confidence, and no-data states in the commuter view.
+- “Report this road” from the route result, which then updates the queue and the corridor score.
+- Local JSON API plus a Lambda / API Gateway / DynamoDB deployment path.
 
-## Requirements
+## Architecture
 
-- Node.js **20.19+** (Node.js 22 recommended)
-- npm
-- For AWS deployment only: AWS CLI, AWS SAM CLI, and configured AWS credentials with permission to deploy the stack.
+```mermaid
+flowchart LR
+  subgraph ui [React + Vite]
+    Commuter[Plan a route]
+    Reports[Citizen report]
+    Authority[Authority queue]
+  end
+  subgraph api [Node API]
+    Locations[Delhi locations]
+    Corridor[3 km corridor check]
+    Risk[Risk engine]
+    Quality[Report validation]
+    Weather[Open-Meteo cache]
+  end
+  subgraph store [Storage]
+    JSON[Local JSON]
+    DDB[DynamoDB 24h TTL]
+  end
+  Commuter --> Locations
+  Commuter --> Risk
+  Reports --> Quality
+  Quality --> JSON
+  Quality --> DDB
+  Authority --> Risk
+  Weather --> Risk
+  Corridor --> Risk
+  JSON --> Risk
+  DDB --> Risk
+```
+
+**Local demo:** Vite (`:5173`) proxies `/api` to the Node server (`:8787`), which writes `backend/data/*.json`.
+
+**AWS target (after the product is stable):** HTTP API Gateway → Lambda (`backend/src/handler.mjs`) → DynamoDB. Frontend static hosting (Amplify or equivalent) with `VITE_API_URL`. Weather still comes from Open-Meteo; only reports and actions are persisted.
+
+If CloudFormation/SAM is blocked on the account, the same Lambda handler, table shape (`PK`/`SK`, `expiresAt` TTL), and HTTP routes can be created in the console. That is proof of AWS use, not a substitute for a working local product.
 
 ## Run locally
 
-Open two terminals in the project root.
-
-Terminal 1 — API server:
+Node.js **20.19+** (22 recommended). From this folder, two terminals:
 
 ```bash
 npm run api
 ```
-
-Terminal 2 — frontend:
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite (normally `http://localhost:5173`). Vite proxies `/api` requests to `http://127.0.0.1:8787`. The API writes demo data to `backend/data/reports.json` and `backend/data/actions.json`; these runtime files are ignored by Git. The first API request seeds three example citizen reports if no report file exists.
-
-To use a deployed API from the frontend, set `VITE_API_URL` to the API base URL (for example, the API Gateway URL) before building. If it is unset, the frontend uses `/api`.
+Open the Vite URL (normally `http://localhost:5173`). First API start seeds three example reports.
 
 ## Test and build
 
@@ -48,38 +84,40 @@ npm test
 npm run build
 ```
 
-The test suite uses Node's built-in test runner. The build creates `dist/` for static hosting. AWS deployment is **not** performed by these commands.
+## Demo story (2–3 minutes)
 
-## API endpoints
+Full script: [DEMO.md](./DEMO.md).
+
+1. Plan **DTU, Rohini → Mandi House**. Mandi House Underpass is on the corridor.
+2. Plan **Dwarka Sector 21 → Vasant Kunj**. Mandi House is *not* on that corridor.
+3. Report severe waterlogging at Mandi House. Authority queue count and risk rise.
+4. Assign → Start → Resolve. Commuter risk on the Rohini–Mandi corridor falls.
+
+## API
 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/health` | Health and storage mode |
+| GET | `/locations` | Suggested Delhi places and hotspots |
 | GET | `/weather` | Cached forecast/fallback for Delhi |
-| GET | `/risk?origin=...&destination=...` | Route-context risk estimate |
-| GET | `/reports` | Recent citizen reports with freshness metadata |
-| POST | `/reports` | Validate and persist a citizen report |
-| GET | `/authority/queue` | Ranked hotspot intervention queue |
-| POST | `/authority/actions` | Advance a hotspot through Assign → Start → Resolve |
+| GET | `/risk?origin=&destination=` | Corridor risk, exposed hotspots, reasons |
+| GET | `/reports` | Recent citizen reports |
+| POST | `/reports` | Validate and persist a report |
+| GET | `/authority/queue` | Ranked hotspot queue |
+| POST | `/authority/actions` | Assign → Start → Resolve |
 
-The local API allows cross-origin requests for hackathon development and does not implement user authentication. Do not expose it publicly without adding authentication, rate limiting, and stricter CORS/security controls.
+The local API allows CORS for hackathon use and has no authentication.
 
-## AWS deployment
+## AWS
 
-See [DEPLOY.md](./DEPLOY.md). The SAM template provisions an HTTP API, Lambda function, and on-demand DynamoDB table with a 24-hour TTL. The Lambda scans the table to assemble the current report/action set; this is acceptable for a small demo but should be replaced with query-oriented access patterns before production scale.
+See [DEPLOY.md](./DEPLOY.md). Deploy only after this product is stable and demoable locally. The SAM template is the intended path; use the console checklist in that file if SAM is blocked.
 
-Deployment, live AWS credentials, IAM permissions, and the deployed API have not been verified as part of this source package. Verify the deployed endpoints using the checklist in `DEPLOY.md`.
-
-## Main project structure
+## Project structure
 
 ```text
-FloodShield-Updated/
-├── src/                     # React UI, API client, CSS
-├── backend/src/             # Local API, Lambda handler, risk/report/weather logic
-├── backend/test/            # Unit and API integration tests
-├── backend/data/             # Local JSON runtime storage (ignored)
-├── template.yaml             # AWS SAM infrastructure
-├── vite.config.js            # Frontend dev server and /api proxy
-├── package.json              # Frontend scripts/dependencies
-└── DEPLOY.md                 # AWS deployment guide
+src/                 React UI
+backend/src/         Local API, Lambda handler, risk/geo/weather
+backend/test/        Unit and API integration tests
+template.yaml        AWS SAM
+DEMO.md              Judge demo script
 ```

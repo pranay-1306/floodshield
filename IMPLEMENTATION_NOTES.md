@@ -1,5 +1,12 @@
 # Implementation and verification notes
 
+## Route-aware scoring
+
+- Delhi location dataset with coordinates; origin/destination resolve to points.
+- Risk uses hotspots within 3 km of the geodesic corridor, not destination-name matching.
+- Commuter UI: suggested places, forecast source/time, why-this-route list, report-this-road, loading/unmatched/low-confidence states.
+- Integration tests cover a west-Delhi clear corridor vs Rohini–Mandi House, duplicate reports, and Assign → Start → Resolve.
+
 ## Changes in this update
 
 - Added a project-specific README after identifying that the root uploaded README/package metadata belonged to unrelated packages.

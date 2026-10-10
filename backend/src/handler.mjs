@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { calculateQueue, calculateRisk, hotspots } from './risk-engine.mjs';
+import { listLocations } from './locations.mjs';
 import { getDelhiRainfall } from './weather.mjs';
 import { isDuplicate, trustScore, validateReport, withReportMeta } from './report-quality.mjs';
 
@@ -48,6 +49,7 @@ export const handler = async (event = {}) => {
   const path = event.rawPath || event.path || '/';
   if (method === 'OPTIONS') return response(204, null);
   if (method === 'GET' && path === '/health') return response(200, { status: 'ok', storage: table ? 'dynamodb' : 'unconfigured' });
+  if (method === 'GET' && path === '/locations') return response(200, listLocations());
   if (method === 'GET' && path === '/weather') {
     try { return response(200, await getDelhiRainfall()); }
     catch { return response(503, { message: 'Weather forecast is temporarily unavailable.' }); }

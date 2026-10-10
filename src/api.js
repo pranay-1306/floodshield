@@ -14,6 +14,7 @@ const request = async (path, options) => {
   return payload;
 };
 
+export const getLocations = () => request('/locations');
 export const getRisk = (origin, destination) => request(`/risk?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`);
 export const getWeather = () => request('/weather');
 export const getReports = () => request('/reports');

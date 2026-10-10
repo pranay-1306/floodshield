@@ -1,23 +1,25 @@
-import test, { before, after } from 'node:test';
+import test, { before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 let child;
 let baseUrl;
 let dataDir;
 let startupOutput = '';
 
+describe('FloodShield local API', { concurrency: false }, () => {
 before(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'floodshield-test-'));
-  child = spawn(process.execPath, [new URL('../src/local-server.mjs', import.meta.url).pathname], {
+  child = spawn(process.execPath, [fileURLToPath(new URL('../src/local-server.mjs', import.meta.url))], {
     env: { ...process.env, PORT: '0', FLOODSHIELD_DATA_DIR: dataDir },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error(`FloodShield API did not start. Output: ${startupOutput}`)), 5000);
+    const timeout = setTimeout(() => reject(new Error(`FloodShield API did not start. Output: ${startupOutput}`)), 8000);
     child.stdout.setEncoding('utf8');
     child.stderr.setEncoding('utf8');
     child.stdout.on('data', (chunk) => {
@@ -89,7 +91,7 @@ test('authority actions must follow Assign → Start → Resolve', async () => {
   const postAction = (status) => jsonRequest('/authority/actions', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ hotspotId: 'mandi-house', status })
+    body: JSON.stringify({ hotspotId: 'iit-gate', status })
   });
 
   assert.equal((await postAction('Assigned')).response.status, 201);
@@ -97,4 +99,36 @@ test('authority actions must follow Assign → Start → Resolve', async () => {
   assert.equal((await postAction('In progress')).response.status, 201);
   assert.equal((await postAction('Resolved')).response.status, 201);
   assert.equal((await postAction('Resolved')).response.status, 409);
+});
+
+test('locations and route-aware risk change when a corridor report arrives', async () => {
+  const locations = await jsonRequest('/locations');
+  assert.equal(locations.response.status, 200);
+  assert.ok(locations.body.some((place) => place.name.includes('DTU')));
+
+  const west = await jsonRequest('/risk?origin=Dwarka%20Sector%2021&destination=Vasant%20Kunj');
+  assert.equal(west.response.status, 200);
+  assert.equal(west.body.matched, true);
+  assert.equal(west.body.exposedHotspots.some((spot) => spot.id === 'mandi-house'), false);
+
+  const before = await jsonRequest('/risk?origin=DTU%2C%20Rohini&destination=Mandi%20House');
+  assert.equal(before.body.matched, true);
+  assert.ok(before.body.exposedHotspots.some((spot) => spot.id === 'mandi-house'));
+
+  const uniqueDetail = `Knee-deep water on the underpass floor ${Date.now()}.`;
+  const created = await jsonRequest('/reports', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ place: 'Mandi House Underpass', detail: uniqueDetail, level: 'Severe' })
+  });
+  assert.equal(created.response.status, 201);
+
+  const queue = await jsonRequest('/authority/queue');
+  const mandi = queue.body.find((spot) => spot.id === 'mandi-house');
+  assert.ok(mandi.reports >= 1);
+
+  const after = await jsonRequest('/risk?origin=DTU%2C%20Rohini&destination=Mandi%20House');
+  assert.ok(after.body.roadReports >= before.body.roadReports);
+  assert.ok(after.body.risk >= before.body.risk);
+});
 });

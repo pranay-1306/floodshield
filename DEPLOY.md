@@ -1,6 +1,8 @@
 # Deploy FloodShield on AWS
 
-FloodShield is designed to deploy as a low-cost serverless system in `ap-south-1` (Mumbai).
+Deploy only after the local product is stable (`npm test`, then the [DEMO.md](./DEMO.md) loop). A public URL is for judges; it is not a substitute for route-aware scoring.
+
+FloodShield is designed to deploy as a low-cost serverless system in `ap-south-1` (Mumbai). If this AWS account blocks SAM/CloudFormation, create the same pieces in the console: HTTP API, Node.js 22 Lambda using `backend/src/handler.mjs`, on-demand DynamoDB table with `PK`/`SK` and TTL on `expiresAt`, and `TABLE_NAME` on the function. Then host `dist/` and set `VITE_API_URL`.
 
 ## What gets created
 
