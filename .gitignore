@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.env.local
+backend/data/*.json
+!backend/data/.gitkeep
+.aws-sam/
+.DS_Store
