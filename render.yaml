@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: floodshield-api
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm run api
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20.19.0"
+      - key: PORT
+        value: "10000"

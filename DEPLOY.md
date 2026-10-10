@@ -13,6 +13,23 @@ FloodShield is designed to deploy as a low-cost serverless system in `ap-south-1
 
 The frontend is deployed separately through **AWS Amplify Hosting**.
 
+## No-AWS fallback: Render + Vercel
+
+If AWS access is blocked by an organization policy, deploy the same app without changing
+the application code:
+
+1. In Render, create a Web Service from this repository. The checked-in `render.yaml`
+   provides the Node runtime, `npm ci` build, `npm run api` start command, and `/health`
+   check. Render will provide an API URL.
+2. In Vercel, import this repository, use `npm run build` with `dist` as the output
+   directory, and add `VITE_API_URL` pointing to the Render API URL.
+3. Verify the public API endpoints and then run the complete demo flow:
+   route check → report submission → Authority Assign → Start → Resolve → route refresh.
+
+The free Render filesystem is ephemeral, so local JSON reports are suitable for a live
+demo but are not durable across service restarts. Use a managed database before treating
+the fallback as production storage.
+
 ## Before deploying
 
 1. In AWS Billing, create a monthly budget alert before creating resources.
