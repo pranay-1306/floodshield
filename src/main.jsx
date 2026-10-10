@@ -160,7 +160,7 @@ function App() {
         )}
       </header>
       {notice && (
-        <div className="toast">
+        <div className="toast" role="status" aria-live="polite">
           <CheckCircle2 size={18} />
           {notice}
           <button onClick={() => setNotice('')}><X size={16} /></button>
@@ -449,6 +449,11 @@ function Signal({ icon, title, value, note }) {
 }
 
 function Authority({ reports, hotspots, weather, openReport, updateAction, refreshing }) {
+  const [selectedSpot, setSelectedSpot] = useState(null);
+  const selectedReports = selectedSpot
+    ? reports.filter((report) => String(report.place || '').toLowerCase().includes(selectedSpot.name.split(' ')[0].toLowerCase()))
+    : [];
+  const latestReport = selectedReports[0];
   return (
     <main className="authority-page">
       <section className="authority-head">
@@ -490,6 +495,7 @@ function Authority({ reports, hotspots, weather, openReport, updateAction, refre
               style={{ ...(hotspotPositions[spot.id] || { left: '50%', top: '50%' }), '--hot': spot.risk >= 75 ? '#ed5b45' : spot.risk >= 50 ? '#f7ae3b' : '#38c895' }}
               title={`${spot.name} · risk ${spot.risk}`}
               aria-label={`${spot.name}, risk ${spot.risk}`}
+              onClick={() => setSelectedSpot(spot)}
             >
               <span></span>
               <small>{spot.name.replace(' Underpass', '').replace(' Crossing', '')}</small>
@@ -520,6 +526,7 @@ function Authority({ reports, hotspots, weather, openReport, updateAction, refre
                 <span>{spot.actionStatus === 'Unassigned' ? `Next: ${spot.action}` : `Status: ${spot.actionStatus}`}</span>
               </div>
               <div className="priority-risk"><strong>{spot.risk}</strong><small>risk</small></div>
+              <button className="inspect" onClick={() => setSelectedSpot(spot)}>Inspect</button>
               <button className="assign" onClick={() => updateAction(spot)} disabled={spot.actionStatus === 'Resolved'}>
                 {spot.actionStatus === 'Unassigned' ? 'Assign' : spot.actionStatus === 'Assigned' ? 'Start' : spot.actionStatus === 'In progress' ? 'Resolve' : 'Resolved'}
               </button>
@@ -548,6 +555,32 @@ function Authority({ reports, hotspots, weather, openReport, updateAction, refre
           <button className="secondary compact" onClick={() => openReport()}><Plus size={15} /> Add report</button>
         </div>
       </section>
+      {selectedSpot && (
+        <div className="evidence-backdrop" role="presentation" onClick={() => setSelectedSpot(null)}>
+          <aside className="evidence-drawer" role="dialog" aria-modal="true" aria-labelledby="evidence-title" onClick={(event) => event.stopPropagation()}>
+            <button className="close evidence-close" aria-label="Close hotspot evidence" onClick={() => setSelectedSpot(null)}><X /></button>
+            <div className="eyebrow dark"><ShieldCheck size={15} /> Evidence panel</div>
+            <h2 id="evidence-title">{selectedSpot.name}</h2>
+            <p className="drawer-subtitle">{selectedSpot.ward} · Queue priority based on current signals</p>
+            <div className="drawer-risk"><strong>{selectedSpot.risk}</strong><span>/100 risk · {selectedSpot.status}</span></div>
+            <div className="evidence-grid">
+              <div><small>REPORTS</small><strong>{selectedSpot.reports}</strong><span>{selectedReports.length ? 'matched in current feed' : 'none matched'}</span></div>
+              <div><small>WEATHER SIGNAL</small><strong>{selectedSpot.rainSignal ?? '—'}</strong><span>rain contribution</span></div>
+              <div><small>REPORT SIGNAL</small><strong>{selectedSpot.reportSignal ?? '—'}</strong><span>freshness + trust</span></div>
+              <div><small>CREW STATUS</small><strong>{selectedSpot.actionStatus}</strong><span>{selectedSpot.mitigation ? `-${selectedSpot.mitigation} risk points` : 'no mitigation yet'}</span></div>
+            </div>
+            <div className="drawer-section">
+              <small className="drawer-kicker">RECOMMENDED ACTION</small>
+              <p className="drawer-action">{selectedSpot.action}</p>
+            </div>
+            <div className="drawer-section">
+              <small className="drawer-kicker">LATEST COMMUNITY EVIDENCE</small>
+              {latestReport ? <blockquote>“{latestReport.detail}”<cite>{latestReport.freshness || 'Recent'} · {latestReport.level}</cite></blockquote> : <p className="empty-copy">No report currently matches this hotspot. Baseline and weather signals are carrying the score.</p>}
+            </div>
+            <button className="primary full" onClick={() => { openReport(selectedSpot.name); setSelectedSpot(null); }}>Add a report for this hotspot <Flag size={16} /></button>
+          </aside>
+        </div>
+      )}
     </main>
   );
 }
@@ -568,11 +601,11 @@ function Metric({ icon, label, value, change, tone }) {
 function ReportModal({ onClose, submit, places, defaultPlace }) {
   const suggestions = useMemo(() => places, [places]);
   return (
-    <div className="modal-backdrop">
-      <form className="modal" onSubmit={submit}>
-        <button type="button" className="close" onClick={onClose}><X /></button>
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <form className="modal" role="dialog" aria-modal="true" aria-labelledby="report-title" onSubmit={submit} onClick={(event) => event.stopPropagation()}>
+        <button type="button" className="close" aria-label="Close report form" onClick={onClose}><X /></button>
         <div className="modal-icon"><Flag /></div>
-        <h2>Report waterlogging</h2>
+        <h2 id="report-title">Report waterlogging</h2>
         <p>Help nearby commuters and the response team see what is happening.</p>
         <label>
           Location
