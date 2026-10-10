@@ -12,3 +12,14 @@ services:
         value: "20.19.0"
       - key: PORT
         value: "10000"
+  - type: static_site
+    name: floodshield-web
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://floodshield-api-xhuy.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
